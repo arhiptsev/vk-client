@@ -1,0 +1,194 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type PhotoSize {
+  export_id: Int!
+  height: Int
+  url: String!
+  type: String
+  width: Int
+  export_photo_id: Int!
+  file: String
+}
+
+type VideoFile {
+  export_id: Int
+  mp4_240: String
+  mp4_360: String
+  mp4_480: String
+  mp4_720: String
+  hls: String
+  video_export_id: Int
+  dash_uni: String
+  dash_sep: String
+  external: String
+  mp4_1080: String
+  dash_webm: String
+  live: String
+  file: String
+}
+
+type Attachment {
+  export_id: Int
+  message_export_id: Int
+  type: String
+  media: Media
+}
+
+union Media = Video | AudioMessage | Photo
+
+type Video {
+  export_id: Int
+  access_key: String
+  can_comment: Int
+  can_like: Int
+  can_repost: Int
+  can_subscribe: Int
+  can_add_to_faves: Int
+  can_add: Int
+  date: Int
+  description: String
+  duration: Int
+  width: Int
+  height: Int
+  id: Int
+  owner_id: Int
+  title: String
+  is_favorite: Boolean
+  player: String
+  added: Int
+  track_code: String
+  type: String
+  views: Int
+  ov_id: String
+  can_edit: Int
+  can_attach_link: Int
+  is_private: Int
+  platform: String
+  local_views: Int
+  comments: Int
+  repeat: Int
+  processing: Int
+  live_start_time: Int
+  live_notify: Int
+  user_id: Int
+  content_restricted: Int
+  content_restricted_message: String
+  balance: Int
+  converting: Int
+  spectators: Int
+  is_subscribed: Int
+  attachment_export_id: Int
+  album_id: Int
+  VideoFile: VideoFile
+}
+
+type AudioMessage {
+  export_id: Int
+  attachment_export_id: Int
+  access_key: String
+  transcript_error: Int
+  duration: Int
+  id: Int
+  link_mp3: String
+  link_ogg: String
+  owner_id: Int
+  waveform: [Int!]
+  transcript_state: String
+  transcript: String
+  file: String
+  type: String
+}
+
+type Photo {
+  export_id: Int
+  album_id: Int
+  date: Int
+  id: Int
+  owner_id: Int
+  has_tags: Boolean
+  lat: Float
+  long: Float
+  access_key: String
+  text: String
+  user_id: Int
+  post_id: Int
+  attachment_export_id: Int
+  photo_256: String
+  place: String
+  type: String
+  PhotoSize: [PhotoSize!]
+}
+
+type Message {
+  export_id: Int
+  id: Int
+  parent_id: Int
+  text: String
+  user_id: Int
+  from_id: Int
+  peer_id: Int
+  ref: String
+  ref_source: String
+  date: Int
+  read_state: Boolean
+  out: Int
+  update_time: Int
+  important: Boolean
+  random_id: Int
+  is_hidden: Boolean
+  conversation_message_id: Int
+  payload: String
+  conversation_export_id: Int
+  reply_id: Int
+  ParentMessage: Message
+  ReplyMessage: Message
+  Attachment: [Attachment!]
+}
+
+type UserInfo {
+  export_id: Int
+  export_peer_id: Int
+  first_name: String
+  id: Int
+  last_name: String
+  can_access_closed: Boolean
+  is_closed: Boolean
+  photo_max: String
+  photo_file: String
+  deactivated: String
+  can_invite_to_chats: Boolean
+}
+
+type Peer {
+  export_id: ID
+  conversation_export_id: Int
+  id: Int
+  type: String
+  local_id: Int
+  Conversation: Conversation
+  UserInfo: UserInfo!
+}
+
+type Conversation {
+  export_id: Int!
+  last_message_id: Int
+  in_read: Int
+  out_read: Int
+  is_marked_unread: Boolean
+  important: Boolean
+  can_send_money: Boolean
+  can_receive_money: Boolean
+  Message: [Message!]
+  Peer: Peer!
+}
+
+type Query {
+  conversation(id: Float!): Conversation!
+  conversations: [Conversation!]!
+  message(id: Float!): Message!
+  messages(skip: Float!, conversation_id: Float!): [Message!]!
+  attachment(id: Float!): Attachment!
+  attachments: [Attachment!]!
+}

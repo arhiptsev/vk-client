@@ -1,0 +1,74 @@
+{
+  "plugins": ["import","prettier"],
+
+  "rules": {
+
+   
+    // "import/order": [
+    //   "error",
+    //   {
+    //     "groups": ["builtin", "external", ["internal", "parent", "sibling"]],
+    //     "pathGroups": [
+    //       {
+    //         "pattern": "{@graphql,@graphql/**}",
+    //         "group": "external",
+    //         "position": "before"
+    //       },
+       
+    //       {
+    //         "pattern": "{../../styled,../styled,./styled}",
+    //         "group": "sibling",
+    //         "position": "after"
+    //       }
+    //     ],
+    //     "newlines-between": "always"
+    //   }
+    // ],
+    // "sort-imports": [
+    //   "error",
+    //   {
+    //     "ignoreCase": false,
+    //     "ignoreDeclarationSort": true,
+    //     "ignoreMemberSort": false,
+    //     "memberSyntaxSortOrder": ["none", "all", "multiple", "single"],
+    //     "allowSeparatedGroups": false,
+    //   },
+    // ],
+    "import/no-unresolved": [2, { "caseSensitive": false }],
+    "import/no-extraneous-dependencies": [
+      "error",
+      {
+        "devDependencies": [
+          "**/*.test.js",
+          "**/*.spec.js",
+          "**/*.test.jsx",
+          "jest.setup.js"
+        ]
+      }
+    ],
+    "react/forbid-prop-types": "off",
+    "react/require-default-props": "off",
+    "react/react-in-jsx-scope": "off"
+  },
+
+  "parser": "@typescript-eslint/parser",
+
+
+  "settings": {
+    "import/parsers": {
+      "@typescript-eslint/parser": [".ts", ".tsx"]
+    },
+    "import/resolver": {
+      "typescript": {
+        "alwaysTryTypes": true, // always try to resolve types under `<root>@types` directory even it doesn't contain any source code, like `@types/unist`
+
+        // Choose from one of the "project" configs below or omit to use <root>/tsconfig.json by default
+
+        // use <root>/path/to/folder/tsconfig.json
+        "project": "./tsconfig.json"
+
+        // Multiple tsconfigs (Useful for monorepos)
+      }
+    }
+  }
+}
