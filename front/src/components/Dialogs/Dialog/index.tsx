@@ -1,6 +1,7 @@
 import React from 'react';
 import MailIcon from '@material-ui/icons/Mail';
 import ArrowDownwardIcon from '@material-ui/icons/ArrowDownward';
+import ArrowUpwardIcon from '@material-ui/icons/ArrowUpward';
 import Badge from '@material-ui/core/Badge';
 
 import { MESSAGES_QUERY } from '@graphql';
@@ -14,7 +15,7 @@ import {
   Container,
   ScrollContainer,
   Message,
-  DownButton,
+  ArrowButton,
   MessageContainer,
   Toolbar,
 } from './styled';
@@ -50,17 +51,27 @@ export const Dialog = () => {
         ))}
       </ScrollContainer>
       <Toolbar>
+        <ArrowButton
+          color="primary"
+          size="medium"
+          onClick={() => {
+            scroll.current?.scrollTo(0, 0);
+          }}
+        >
+          <ArrowUpwardIcon fontSize="inherit" />
+        </ArrowButton>
         <Badge color="primary" badgeContent={messages.length} max={1000000}>
           <MailIcon />
         </Badge>
-        <DownButton
+        <ArrowButton
+          color="primary"
           size="medium"
           onClick={() => {
             scroll.current?.scrollTo(0, scroll.current.scrollHeight);
           }}
         >
           <ArrowDownwardIcon fontSize="inherit" />
-        </DownButton>
+        </ArrowButton>
       </Toolbar>
     </Container>
   );

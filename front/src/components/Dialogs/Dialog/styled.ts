@@ -1,7 +1,8 @@
 import styled from 'styled-components';
 import IconButton from '@material-ui/core/IconButton';
 
-export const DownButton = styled(IconButton)``;
+export const ArrowButton = styled(IconButton)`
+`;
 
 export const Container = styled.div`
   display: grid;
@@ -11,7 +12,7 @@ export const Container = styled.div`
 
 export const Toolbar = styled.div`
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
 

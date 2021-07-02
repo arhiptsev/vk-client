@@ -12,8 +12,8 @@ import Paper from '@material-ui/core/Paper';
 import { CONVERSATIONS_QUERY } from '../../graphql';
 import { Conversation } from '../../graphql/types';
 
-import { Container, ConversationItem, Name, TableRowStyled } from './styled';
-import { Link, useHistory } from 'react-router-dom';
+import { Container, TableRowStyled } from './styled';
+import { useHistory } from 'react-router-dom';
 
 type ConversationResponse = { conversations: Conversation[] };
 
