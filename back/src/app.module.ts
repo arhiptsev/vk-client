@@ -4,6 +4,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PrismaModule } from './prisma/prisma.module';
 import { VkModule } from './vk/vk.module';
+import { ApolloDriver } from '@nestjs/apollo';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { VkModule } from './vk/vk.module';
       },
       context: ({ req }) => ({ req }),
       playground: true,
+      driver: ApolloDriver,
     }),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'static'),

@@ -8,7 +8,7 @@ import { Video } from './Video';
 
 import { isAudioMessage, isPhoto, isVideo } from './type-guards';
 
-export const isMedia = (key: MediaType | undefined): key is MediaType => !!key;
+export const isMedia = (key: MediaType | undefined | null): key is MediaType => !!key;
 
 export const Attachments = ({ attachments }: { attachments: Attachment[] }) => {
   const medias = useMemo(

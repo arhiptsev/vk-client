@@ -188,7 +188,7 @@ type Query {
   conversation(id: Float!): Conversation!
   conversations: [Conversation!]!
   message(id: Float!): Message!
-  messages(skip: Float!, conversation_id: Float!): [Message!]!
+  messages(conversation_id: Float!, skip: Float!): [Message!]!
   attachment(id: Float!): Attachment!
   attachments: [Attachment!]!
 }

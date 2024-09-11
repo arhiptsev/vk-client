@@ -29,6 +29,6 @@ export class AttachmentResolver {
           Video: { include: { VideoFile: true } },
         },
       })
-      .then(({ AudioMessage, Photo, Video }) => AudioMessage || Photo || Video);
+      .then(({ AudioMessage, Photo, Video }) => AudioMessage && {...AudioMessage, type: 'audioMessage'} || Photo && {...Photo, type: 'photo'} || Video && {...Video, type: 'video'});
   }
 }

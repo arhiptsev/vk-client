@@ -6,11 +6,10 @@ import { Video } from './video';
 export const Media = createUnionType({
   name: 'Media',
   types: () => [Video, AudioMessage, Photo],
-  resolveType({ type }) {
+  resolveType({ type, ...rest }) {
     if (type === 'video') return Video;
     if (type === 'photo') return Photo;
     if (type === 'audioMessage') return AudioMessage;
-    console.log('fgfg');
     return null;
   },
 });

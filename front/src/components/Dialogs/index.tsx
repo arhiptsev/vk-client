@@ -13,7 +13,7 @@ import { CONVERSATIONS_QUERY } from '../../graphql';
 import { Conversation } from '../../graphql/types';
 
 import { Container, TableRowStyled } from './styled';
-import { useHistory } from 'react-router-dom';
+import { useNavigate  } from 'react-router-dom';
 
 type ConversationResponse = { conversations: Conversation[] };
 
@@ -21,8 +21,8 @@ export const Dialogs = () => {
   const { data, error, loading } =
     useQuery<ConversationResponse>(CONVERSATIONS_QUERY);
 
-  const history = useHistory();
-  const goToDialog = (id: number) => history.push(`/dialog/${id}`);
+  const navigate  = useNavigate();
+  const goToDialog = (id: number) => navigate(`/dialog/${id}`);
 
   if (!data) return null;
   const { conversations } = data;

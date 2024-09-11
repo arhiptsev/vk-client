@@ -12,6 +12,8 @@ export function useScrollLoading<T>(
   const { loading } = useQuery(query, {
     variables: getVariables(offset),
     onCompleted: (res) => {
+      console.log("🚀 ~ res:", res)
+      
       setItems([...items, ...getItems(res)]);
     },
   });

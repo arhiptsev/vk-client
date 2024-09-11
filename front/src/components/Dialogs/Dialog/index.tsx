@@ -37,7 +37,8 @@ export const Dialog = () => {
   const scroll = useRef<HTMLDivElement>(null);
 
   if (loading && !messages.length) return <div>Loading</div>;
-
+  console.log("🚀 ~ Dialog ~ messages:", messages)
+  
   return (
     <Container>
       <ScrollContainer ref={scroll} onScroll={scrollHandler}>
