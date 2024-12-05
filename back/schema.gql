@@ -180,7 +180,7 @@ type Conversation {
   important: Boolean
   can_send_money: Boolean
   can_receive_money: Boolean
-  Message: [Message!]
+  countMessages: Int
   Peer: Peer!
 }
 

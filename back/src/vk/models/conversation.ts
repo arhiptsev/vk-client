@@ -28,8 +28,8 @@ export class Conversation {
   @Field(() => Boolean, { nullable: true })
   can_receive_money?: boolean;
 
-  @Field(() => [Message], { nullable: true })
-  Message?: Message[];
+  @Field(() => Int, { nullable: true })
+  countMessages?: number;
 
   @Field(() => Peer)
   Peer: Peer;

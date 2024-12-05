@@ -43,7 +43,7 @@ export const Dialog = () => {
     <Container>
       <ScrollContainer ref={scroll} onScroll={scrollHandler}>
         {messages.map(({ export_id, out, text, Attachment }) => (
-          <MessageContainer key={export_id} $incoming={!out}>
+          <MessageContainer key={export_id} $incoming={!!out}>
             <Message>
               {text}
               {Attachment && <Attachments attachments={Attachment} />}

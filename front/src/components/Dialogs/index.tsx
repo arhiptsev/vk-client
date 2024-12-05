@@ -39,7 +39,7 @@ export const Dialogs = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {conversations.map(({ export_id, Peer }) => {
+            {conversations.map(({ export_id, Peer, countMessages }) => {
               const { first_name, last_name } = Peer.UserInfo;
 
               return (
@@ -53,7 +53,7 @@ export const Dialogs = () => {
                   <TableCell>
                     {first_name} {last_name}
                   </TableCell>
-                  <TableCell>44</TableCell>
+                  <TableCell>{countMessages}</TableCell>
                 </TableRowStyled>
               );
             })}

@@ -2,6 +2,7 @@ import { Prisma, Conversation as ConversationPrisma } from '.prisma/client';
 import {
   Args,
   Info,
+  Int,
   Parent,
   Query,
   ResolveField,
@@ -29,17 +30,14 @@ export class ConversationResolver {
     return this.prisma.conversation.findMany();
   }
 
-  @ResolveField(() => [Message])
-  public Message(
+  @ResolveField(() => Int)
+  public countMessages(
     @Parent() { export_id: conversation_export_id }: Conversation,
-  ): Promise<Message[]> {
-    return this.prisma.message.findMany({
+  ): Promise<number> {
+    return this.prisma.message.count({
       where: { conversation_export_id },
-      orderBy: {
-        date: 'desc',
-      },
-      take: 100,
-    });
+
+    })
   }
 
   @ResolveField(() => Peer)

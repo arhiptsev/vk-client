@@ -184,7 +184,7 @@ export interface Conversation {
     important?: Nullable<boolean>;
     can_send_money?: Nullable<boolean>;
     can_receive_money?: Nullable<boolean>;
-    Message?: Nullable<Message[]>;
+    countMessages?: Nullable<number>;
     Peer: Peer;
 }
 

@@ -4,12 +4,12 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = "postgresql://postgres:mysecretpassword@45.82.15.193:5432/vk?schema=public"
 }
 
 model Accounts {
   id       Int     @id @default(autoincrement())
-  vk_token Int     @unique
+  vk_token Int     @unique(map: "Accounts.vk_token_unique")
   name     String?
 }
 
@@ -17,7 +17,7 @@ model Attachment {
   export_id         Int           @id @default(autoincrement())
   message_export_id Int
   type              String
-  Message           Message       @relation(fields: [message_export_id], references: [export_id])
+  Message           Message       @relation(fields: [message_export_id], references: [export_id], onDelete: Cascade)
   Audio             Audio?
   AudioMessage      AudioMessage?
   Photo             Photo?
@@ -26,7 +26,7 @@ model Attachment {
 
 model Audio {
   export_id             Int           @id @default(autoincrement())
-  attachment_export_id  Int?          @unique
+  attachment_export_id  Int?          @unique(map: "Audio_attachment_export_id_unique")
   artist                String?
   id                    Int?
   title                 String?
@@ -54,7 +54,7 @@ model Audio {
 
 model AudioAds {
   export_id        Int     @id @default(autoincrement())
-  audio_export_id  Int?    @unique
+  audio_export_id  Int?    @unique(map: "AudioAds_audio_export_id_unique")
   content_id       String?
   duration         String?
   account_age_type String?
@@ -74,7 +74,7 @@ model AudioArtist {
 
 model AudioMessage {
   export_id            Int         @id @default(autoincrement())
-  attachment_export_id Int?        @unique
+  attachment_export_id Int?        @unique(map: "AudioMessage_attachment_export_id_unique")
   access_key           String?
   transcript_error     Int?
   duration             Int?
@@ -86,7 +86,6 @@ model AudioMessage {
   transcript_state     String?
   transcript           String?
   file                 String?
-  type                 String      @default("audioMessage") @db.VarChar(100)
   Attachment           Attachment? @relation(fields: [attachment_export_id], references: [export_id])
 }
 
@@ -107,7 +106,7 @@ model Like {
   export_id       Int    @id @default(autoincrement())
   count           Int?
   user_likes      Int?
-  video_export_id Int?   @unique
+  video_export_id Int?   @unique(map: "Like_video_export_id_unique")
   Video           Video? @relation(fields: [video_export_id], references: [export_id])
 }
 
@@ -131,27 +130,27 @@ model Message {
   conversation_message_id                  Int?
   payload                                  String?
   conversation_export_id                   Int?
-  reply_id                                 Int?          @unique
-  Conversation                             Conversation? @relation(fields: [conversation_export_id], references: [export_id])
-  Message_MessageToMessage_parent_id       Message?      @relation("MessageToMessage_parent_id", fields: [parent_id], references: [export_id])
-  Message_MessageToMessage_reply_id        Message?      @relation("MessageToMessage_reply_id", fields: [reply_id], references: [export_id])
+  reply_id                                 Int?          @unique(map: "Message_reply_id_unique")
   Attachment                               Attachment[]
+  Conversation                             Conversation? @relation(fields: [conversation_export_id], references: [export_id], onDelete: Cascade)
+  Message_MessageToMessage_parent_id       Message?      @relation("MessageToMessage_parent_id", fields: [parent_id], references: [export_id])
   other_Message_MessageToMessage_parent_id Message[]     @relation("MessageToMessage_parent_id")
+  Message_MessageToMessage_reply_id        Message?      @relation("MessageToMessage_reply_id", fields: [reply_id], references: [export_id])
   other_Message_MessageToMessage_reply_id  Message?      @relation("MessageToMessage_reply_id")
 }
 
 model Options {
-  key   String  @unique
+  key   String  @unique(map: "Options.key_unique")
   value String?
 }
 
 model Peer {
   export_id              Int          @id @default(autoincrement())
-  conversation_export_id Int          @unique
-  id                     Int          @unique
+  conversation_export_id Int          @unique(map: "Peer_conversation_export_id_unique")
+  id                     Int          @unique(map: "Peer.id_unique")
   type                   String?
   local_id               Int?
-  Conversation           Conversation @relation(fields: [conversation_export_id], references: [export_id])
+  Conversation           Conversation @relation(fields: [conversation_export_id], references: [export_id], onDelete: Cascade)
   UserInfo               UserInfo?
 }
 
@@ -168,11 +167,10 @@ model Photo {
   text                 String?
   user_id              Int?
   post_id              Int?
-  attachment_export_id Int         @unique
+  attachment_export_id Int         @unique(map: "Photo_attachment_export_id_unique")
   photo_256            String?
   place                String?
-  type                 String      @default("photo") @db.VarChar(100)
-  Attachment           Attachment  @relation(fields: [attachment_export_id], references: [export_id])
+  Attachment           Attachment  @relation(fields: [attachment_export_id], references: [export_id], onDelete: Cascade)
   PhotoSize            PhotoSize[]
 }
 
@@ -184,14 +182,14 @@ model PhotoSize {
   width           Int?
   export_photo_id Int
   file            String?
-  Photo           Photo   @relation(fields: [export_photo_id], references: [export_id])
+  Photo           Photo   @relation(fields: [export_photo_id], references: [export_id], onDelete: Cascade)
 }
 
 model Repost {
   export_id       Int    @id @default(autoincrement())
   count           Int?
   user_reposted   Int?
-  video_export_id Int?   @unique
+  video_export_id Int?   @unique(map: "Repost_video_export_id_unique")
   wall_count      Int?
   mail_count      Int?
   Video           Video? @relation(fields: [video_export_id], references: [export_id])
@@ -205,13 +203,13 @@ model TimelineThumbs {
   frame_height    Int?
   frame_width     Decimal?
   links           String[]
-  video_export_id Int?     @unique
+  video_export_id Int?     @unique(map: "TimelineThumbs_video_export_id_unique")
   Video           Video?   @relation(fields: [video_export_id], references: [export_id])
 }
 
 model UserInfo {
   export_id           Int      @id @default(autoincrement())
-  export_peer_id      Int      @unique
+  export_peer_id      Int      @unique(map: "UserInfo_export_peer_id_unique")
   first_name          String?
   id                  Int?
   last_name           String?
@@ -221,12 +219,12 @@ model UserInfo {
   photo_file          String?
   deactivated         String?
   can_invite_to_chats Boolean?
-  Peer                Peer     @relation(fields: [export_peer_id], references: [export_id])
+  Peer                Peer     @relation(fields: [export_peer_id], references: [export_id], onDelete: Cascade)
 }
 
 model Users {
   id    Int     @id @default(autoincrement())
-  vk_id Int     @unique
+  vk_id Int     @unique(map: "Users.vk_id_unique")
   name  String?
 }
 
@@ -271,12 +269,12 @@ model Video {
   converting                 Int?
   spectators                 Int?
   is_subscribed              Int?
-  attachment_export_id       Int?              @unique
+  attachment_export_id       Int?              @unique(map: "Video_attachment_export_id_unique")
   album_id                   Int?
-  Attachment                 Attachment?       @relation(fields: [attachment_export_id], references: [export_id])
   Like                       Like?
   Repost                     Repost?
   TimelineThumbs             TimelineThumbs?
+  Attachment                 Attachment?       @relation(fields: [attachment_export_id], references: [export_id])
   VideoAds                   VideoAds?
   VideoFile                  VideoFile?
   VideoFirstFrame            VideoFirstFrame[]
@@ -290,7 +288,7 @@ model VideoAds {
   can_play         Int?
   sections         String[]
   midroll_percents Decimal[]
-  video_export_id  Int?            @unique
+  video_export_id  Int?            @unique(map: "VideoAds_video_export_id_unique")
   Video            Video?          @relation(fields: [video_export_id], references: [export_id])
   VideoAdsParams   VideoAdsParams?
 }
@@ -321,7 +319,7 @@ model VideoAdsParams {
   puid21                     Int?
   sign                       String?
   vk_catid                   Int?
-  video_ads_params_export_id Int?      @unique
+  video_ads_params_export_id Int?      @unique(map: "VideoAdsParams_video_ads_params_export_id_unique")
   is_xz_video                Int?
   VideoAds                   VideoAds? @relation(fields: [video_ads_params_export_id], references: [export_id])
 }
@@ -333,7 +331,7 @@ model VideoFile {
   mp4_480         String?
   mp4_720         String?
   hls             String?
-  video_export_id Int?    @unique
+  video_export_id Int?    @unique(map: "VideoFile_video_export_id_unique")
   dash_uni        String?
   dash_sep        String?
   external        String?

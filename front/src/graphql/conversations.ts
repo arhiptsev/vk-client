@@ -11,10 +11,7 @@ export const CONVERSATIONS_QUERY = gql`
         }
       }
       last_message_id
-      Message {
-        from_id
-        text
-      }
+      countMessages
     }
   }
 `;
