@@ -1,9 +1,13 @@
-export const STATIC_CONTENT_URL = 'http://localhost:4000';
+/**
+ * Базовый URL сервера с медиа (без завершающего слэша).
+ * Задаётся в .env: EXPO_PUBLIC_MEDIA_URL=https://media.example.com
+ */
+export const MEDIA_URL = (
+  process.env.EXPO_PUBLIC_MEDIA_URL ?? ''
+).replace(/\/$/, '');
 
-export const VIDEO_PATH = '/videos';
-export const PHOTO_PATH = '/photos';
-export const AUDIO_MESSAGE_PATH = '/audios';
+export const getPhotoUrl = (file: string) => `${MEDIA_URL}/photos/${file}`;
+export const getAudioUrl = (file: string) => `${MEDIA_URL}/audios/${file}`;
+export const getVideoUrl = (file: string) => `${MEDIA_URL}/videos/${file}`;
 
-export const VIDEO_URL = `${STATIC_CONTENT_URL}/${VIDEO_PATH}/`;
-export const PHOTO_URL = `${STATIC_CONTENT_URL}/${PHOTO_PATH}/`;
-export const AUDIO_MESSAGE_URL = `${STATIC_CONTENT_URL}/${AUDIO_MESSAGE_PATH}/`;
+export const isMediaServerConfigured = () => MEDIA_URL.length > 0;
