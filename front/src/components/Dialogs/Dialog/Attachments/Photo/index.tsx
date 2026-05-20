@@ -1,39 +1,50 @@
-import React from 'react';
+import { Image } from 'expo-image';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { PhotoContainer, PhotoImg } from './styled';
+import {
+  getPhotoUrl,
+  isMediaServerConfigured,
+} from '../../../../../common/constants';
+import type { Photo as PhotoType } from '../../../../../db/types';
 
-import { Photo as PhotoType } from '@graphql/types';
-import { PHOTO_URL } from '../../../../../common/constants';
+export const Photo = ({ PhotoSize }: PhotoType) => {
+  const file = PhotoSize?.find((size) => size.file)?.file;
 
-export const Photo = ({
-  export_id,
-  album_id,
-  date,
-  id,
-  owner_id,
-  has_tags,
-  lat,
-  long,
-  access_key,
-  text,
-  user_id,
-  post_id,
-  attachment_export_id,
-  photo_256,
-  place,
-  type,
-  PhotoSize,
-}: PhotoType) => {
-  // console.log('photo');
-  const file = PhotoSize?.find((i) => i.file);
-  console.log(type);
+  if (!file) {
+    return <Text style={styles.placeholder}>Нет данных о файле фото</Text>;
+  }
+
+  if (!isMediaServerConfigured()) {
+    return (
+      <Text style={styles.placeholder}>
+        Фото: {file} (задайте EXPO_PUBLIC_MEDIA_URL)
+      </Text>
+    );
+  }
+
   return (
-    <PhotoContainer>
-      {file?.file ? (
-        <PhotoImg src={PHOTO_URL + file.file} />
-      ) : (
-        'Нет данных о файле фото'
-      )}
-    </PhotoContainer>
+    <View style={styles.container}>
+      <Image
+        source={{ uri: getPhotoUrl(file) }}
+        style={styles.image}
+        contentFit="cover"
+      />
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    maxWidth: 220,
+  },
+  image: {
+    width: 200,
+    height: 200,
+    borderRadius: 8,
+    backgroundColor: '#d9d9d9',
+  },
+  placeholder: {
+    fontSize: 13,
+    color: '#667781',
+  },
+});

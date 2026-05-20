@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "VK Client",
+    "slug": "vkclient",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#edeef0"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vkclient.app",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "com.vkclient.app",
+      "versionCode": 1
+    },
+    "plugins": ["expo-sqlite"]
+  }
+}
