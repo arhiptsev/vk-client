@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
+import { MESSAGES_PAGE_SIZE } from '../common/constants';
 import { Attachments } from '../components/attachments/Attachments';
 import { QuotedMessageView } from '../components/QuotedMessage';
+import { VirtualList, type VirtualListHandle } from '../components/VirtualList';
 import { useDb } from '../db/DbContext';
 import type { Message } from '../db/types';
+
+const PREPEND_COOLDOWN_MS = 800;
+const SCROLL_LOAD_REARM_PX = 240;
 
 const formatSenderName = (sender: Message['Sender']) => {
   if (!sender) return null;
@@ -23,7 +28,7 @@ const formatDate = (timestamp?: number | null) => {
   });
 };
 
-const MessageBubble = ({ message }: { message: Message }) => {
+const MessageBubble = memo(({ message }: { message: Message }) => {
   const incoming = !!message.out;
   const isReceived = !message.out;
   const senderName = isReceived ? formatSenderName(message.Sender) : null;
@@ -41,26 +46,38 @@ const MessageBubble = ({ message }: { message: Message }) => {
       </div>
     </div>
   );
-};
+});
+
+MessageBubble.displayName = 'MessageBubble';
 
 export const DialogPage = () => {
   const { id } = useParams();
   const conversationId = Number(id);
   const { getMessages } = useDb();
-  const listRef = useRef<HTMLDivElement>(null);
-  const didScrollToBottom = useRef(false);
-  const scrollRestoreRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(
-    null
-  );
+  const listRef = useRef<VirtualListHandle>(null);
+
+  const prependReadyRef = useRef(false);
+  const canLoadOlderRef = useRef(true);
+  const prependLockRef = useRef(false);
+  const mustLeaveTopRef = useRef(false);
+  const skipRef = useRef(0);
+  const fetchedSkipsRef = useRef(new Set<number>());
+  const ignoreScrollUntilRef = useRef(0);
+  const scrollSnapshotRef = useRef<{ top: number; height: number } | null>(null);
+  const guardsRef = useRef({ loading: false, loadingMore: false, hasMore: true });
 
   const [items, setItems] = useState<Message[]>([]);
   const [skip, setSkip] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  skipRef.current = skip;
+  guardsRef.current = { loading, loadingMore, hasMore };
+
   const loadPage = useCallback(
-    async (nextSkip: number, append: boolean) => {
+    async (nextSkip: number, append: boolean): Promise<number> => {
       const isInitial = nextSkip === 0 && !append;
       if (isInitial) setLoading(true);
       else setLoadingMore(true);
@@ -68,24 +85,23 @@ export const DialogPage = () => {
 
       try {
         const newItems = await getMessages(conversationId, nextSkip);
-        // SQL: ORDER BY date DESC — разворачиваем в хронологию (старые → новые)
         const chronological = [...newItems].reverse();
+        const pageFull = newItems.length === MESSAGES_PAGE_SIZE;
 
         if (append) {
-          const listEl = listRef.current;
-          if (listEl) {
-            scrollRestoreRef.current = {
-              scrollTop: listEl.scrollTop,
-              scrollHeight: listEl.scrollHeight,
-            };
-          }
+          setItems((prev) => [...chronological, ...prev]);
+          setSkip(nextSkip);
+          setHasMore(pageFull);
+          return chronological.length;
         }
 
-        setItems((prev) =>
-          append ? [...chronological, ...prev] : chronological
-        );
+        setItems(chronological);
+        setSkip(0);
+        setHasMore(pageFull);
+        return 0;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ошибка загрузки сообщений');
+        return 0;
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -95,58 +111,121 @@ export const DialogPage = () => {
   );
 
   useEffect(() => {
+    prependReadyRef.current = false;
+    canLoadOlderRef.current = true;
+    prependLockRef.current = false;
+    mustLeaveTopRef.current = false;
+    fetchedSkipsRef.current.clear();
+    scrollSnapshotRef.current = null;
+    ignoreScrollUntilRef.current = 0;
     setItems([]);
     setSkip(0);
-    didScrollToBottom.current = false;
-    scrollRestoreRef.current = null;
+    setHasMore(true);
     void loadPage(0, false);
   }, [conversationId, loadPage]);
 
   useEffect(() => {
-    if (skip > 0) {
-      void loadPage(skip, true);
-    }
-  }, [skip, loadPage]);
+    prependReadyRef.current = false;
+    canLoadOlderRef.current = true;
+    if (loading || items.length === 0) return;
 
-  // После подгрузки старых сообщений — остаёмся на том же месте в ленте
-  useLayoutEffect(() => {
-    const snapshot = scrollRestoreRef.current;
-    if (!snapshot) return;
+    const timerId = window.setTimeout(() => {
+      prependReadyRef.current = true;
+    }, 400);
 
-    const el = listRef.current;
-    if (!el) return;
+    return () => window.clearTimeout(timerId);
+  }, [conversationId, loading, items.length]);
 
-    scrollRestoreRef.current = null;
-    el.scrollTop = snapshot.scrollTop + (el.scrollHeight - snapshot.scrollHeight);
-  }, [items]);
+  const restoreScrollAfterPrepend = useCallback(() => {
+    const snap = scrollSnapshotRef.current;
+    scrollSnapshotRef.current = null;
+    const scroller = listRef.current?.getScrollerElement();
+    if (!snap || !scroller) return;
 
-  // При открытии диалога — прокрутка к последним сообщениям
-  useEffect(() => {
-    if (loading || items.length === 0 || didScrollToBottom.current) return;
-    const el = listRef.current;
-    if (!el) return;
-    didScrollToBottom.current = true;
+    let attempts = 0;
+    const restore = () => {
+      const added = scroller.scrollHeight - snap.height;
+      if (added <= 0 && attempts < 15) {
+        attempts += 1;
+        requestAnimationFrame(restore);
+        return;
+      }
+      if (added > 0) {
+        scroller.scrollTop = snap.top + added;
+      }
+    };
+
     requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
+      requestAnimationFrame(restore);
     });
-  }, [loading, items.length]);
+  }, []);
 
-  const onScroll = () => {
-    const el = listRef.current;
-    if (!el || loading || loadingMore) return;
+  const tryLoadOlder = useCallback(() => {
+    const { loading: isLoading, loadingMore: isLoadingMore, hasMore: more } =
+      guardsRef.current;
 
-    const nearTop = el.scrollTop < 50;
-    const canLoadMore = el.scrollHeight > el.clientHeight;
+    if (Date.now() < ignoreScrollUntilRef.current) return;
+    if (prependLockRef.current || mustLeaveTopRef.current) return;
+    if (!prependReadyRef.current || isLoading || isLoadingMore || !more) return;
+    if (!canLoadOlderRef.current) return;
 
-    if (nearTop && canLoadMore && !loadingMore) {
-      setSkip((prev) => prev + 100);
+    const nextSkip = skipRef.current + MESSAGES_PAGE_SIZE;
+    if (fetchedSkipsRef.current.has(nextSkip)) return;
+
+    const scroller = listRef.current?.getScrollerElement();
+    if (scroller) {
+      scrollSnapshotRef.current = {
+        top: scroller.scrollTop,
+        height: scroller.scrollHeight,
+      };
     }
+
+    fetchedSkipsRef.current.add(nextSkip);
+    canLoadOlderRef.current = false;
+    mustLeaveTopRef.current = true;
+    prependLockRef.current = true;
+    ignoreScrollUntilRef.current = Date.now() + PREPEND_COOLDOWN_MS;
+
+    const finishPrepend = () => {
+      prependLockRef.current = false;
+      ignoreScrollUntilRef.current = Date.now() + PREPEND_COOLDOWN_MS;
+    };
+
+    void loadPage(nextSkip, true)
+      .then((prependedCount) => {
+        if (prependedCount > 0) {
+          restoreScrollAfterPrepend();
+        }
+      })
+      .finally(finishPrepend);
+  }, [loadPage, restoreScrollAfterPrepend]);
+
+  const handleListScroll = useCallback(() => {
+    if (Date.now() < ignoreScrollUntilRef.current) return;
+
+    const scroller = listRef.current?.getScrollerElement();
+    if (!scroller) return;
+
+    if (scroller.scrollTop > SCROLL_LOAD_REARM_PX) {
+      if (Date.now() >= ignoreScrollUntilRef.current) {
+        mustLeaveTopRef.current = false;
+        if (!prependLockRef.current) {
+          canLoadOlderRef.current = true;
+        }
+      }
+    }
+  }, []);
+
+  const scrollToOldest = () => {
+    listRef.current?.scrollToTop('smooth');
+  };
+
+  const scrollToNewest = () => {
+    listRef.current?.scrollToBottom('smooth');
   };
 
   if (loading && items.length === 0) {
-    return (
-      <div className="page-scroll centered">Загрузка сообщений…</div>
-    );
+    return <div className="page-scroll centered">Загрузка сообщений…</div>;
   }
 
   if (error) {
@@ -157,33 +236,45 @@ export const DialogPage = () => {
     );
   }
 
+  const countLabel = hasMore ? `${items.length}+` : String(items.length);
+
   return (
     <div className="dialog-layout">
-      <div className="messages" ref={listRef} onScroll={onScroll}>
-        {loadingMore && <div className="messages-loader">Загрузка…</div>}
-        {items.map((item) => (
-          <MessageBubble key={item.export_id} message={item} />
-        ))}
-      </div>
-      <aside className="dialog-toolbar">
-        <button
-          type="button"
-          title="К началу истории"
-          onClick={() => listRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-        >
-          ↑
-        </button>
-        <span className="count">{items.length}</span>
-        <button
-          type="button"
-          title="К последним сообщениям"
-          onClick={() =>
-            listRef.current?.scrollTo({
-              top: listRef.current.scrollHeight,
-              behavior: 'smooth',
-            })
+      {items.length === 0 ? (
+        <div className="messages messages--empty">Нет сообщений</div>
+      ) : (
+        <VirtualList
+          key={conversationId}
+          ref={listRef}
+          className="messages"
+          items={items}
+          itemKey={(item) => item.export_id}
+          estimateItemHeight={72}
+          initialScrollBottom
+          reachTopThreshold={120}
+          onReachTop={tryLoadOlder}
+          onScroll={handleListScroll}
+          header={
+            loadingMore ? (
+              <div className="messages-loader messages-loader--inline">Загрузка…</div>
+            ) : null
           }
         >
+          {(message) => (
+            <div className="virtual-list-item-inner">
+              <MessageBubble message={message} />
+            </div>
+          )}
+        </VirtualList>
+      )}
+      <aside className="dialog-toolbar">
+        <button type="button" title="К началу истории" onClick={scrollToOldest}>
+          ↑
+        </button>
+        <span className="count" title={hasMore ? 'Загружено не всё — прокрутите вверх' : undefined}>
+          {countLabel}
+        </span>
+        <button type="button" title="К последним сообщениям" onClick={scrollToNewest}>
           ↓
         </button>
       </aside>

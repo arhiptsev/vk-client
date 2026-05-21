@@ -254,22 +254,61 @@ button {
   display: flex;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   background: #e5ddd5;
 }
 
 .messages {
   position: relative;
   flex: 1;
-  overflow-y: auto;
-  padding: 12px;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.messages--empty {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  color: #667781;
+  font-size: 14px;
+}
+
+.virtual-list {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.virtual-list__track {
+  position: relative;
+  width: 100%;
+}
+
+.virtual-list__item {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.virtual-list-item-inner {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 12px;
 }
 
 .message-row {
   display: flex;
+  width: 100%;
   justify-content: flex-start;
+  margin-bottom: 4px;
 }
 
 .message-row.incoming {
@@ -278,9 +317,11 @@ button {
 
 .bubble {
   max-width: 78%;
-  min-width: 120px;
+  min-width: 0;
   border-radius: 8px;
   padding: 8px 10px 6px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .bubble.outgoing {
@@ -336,7 +377,7 @@ button {
 }
 
 .message-quote-attachments .attachments img {
-  max-width: 160px;
+  max-width: 100%;
 }
 
 .message-text {
@@ -358,6 +399,8 @@ button {
   flex-direction: column;
   gap: 8px;
   margin-top: 4px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .attachments .placeholder {
@@ -366,7 +409,11 @@ button {
 }
 
 .attachments img {
-  max-width: 200px;
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  min-height: 80px;
   border-radius: 8px;
   background: #d9d9d9;
 }
@@ -375,8 +422,9 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 180px;
-  max-width: 260px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .audio-message-play {
@@ -463,17 +511,15 @@ button {
 }
 
 .messages-loader {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1;
   padding: 8px;
   text-align: center;
   font-size: 13px;
   color: #5181b8;
+}
+
+.messages-loader--inline {
+  padding: 8px 12px;
   background: linear-gradient(to bottom, rgba(229, 221, 213, 0.96), transparent);
-  pointer-events: none;
 }
 
 .back-link {

@@ -1,3 +1,4 @@
+import { MESSAGES_PAGE_SIZE } from '../common/constants';
 import type { SqlDatabase } from './database';
 import type {
   Attachment,
@@ -50,7 +51,7 @@ const MESSAGE_FEED_SQL = `
   LEFT JOIN UserInfo u ON u.id = m.from_id
   WHERE m.conversation_export_id = ?
   ORDER BY m.date DESC
-  LIMIT 100 OFFSET ?
+  LIMIT ${MESSAGES_PAGE_SIZE} OFFSET ?
 `;
 
 function mapSender(
