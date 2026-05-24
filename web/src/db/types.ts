@@ -43,6 +43,14 @@ export type AudioMessage = {
   link_ogg: string | null;
 };
 
+/** Музыкальное вложение (таблица Audio) */
+export type Audio = {
+  export_id: number;
+  attachment_export_id: number | null;
+  artist: string | null;
+  title: string | null;
+};
+
 export type VideoFile = {
   export_id: number;
   video_export_id: number | null;
@@ -63,6 +71,7 @@ export type Attachment = {
   type: string;
   Photo?: Photo;
   AudioMessage?: AudioMessage;
+  Audio?: Audio;
   Video?: Video;
 };
 
@@ -77,7 +86,10 @@ export type QuotedMessage = {
   text: string;
   date: number;
   out: number | null;
+  from_id: number;
+  parent_id: number | null;
   Sender: MessageSender | null;
+  QuotedMessages: QuotedMessage[];
   Attachment: Attachment[];
 };
 
@@ -90,6 +102,6 @@ export type Message = {
   reply_id: number | null;
   parent_id: number | null;
   Sender: MessageSender | null;
-  QuotedMessage: QuotedMessage | null;
+  QuotedMessages: QuotedMessage[];
   Attachment: Attachment[];
 };

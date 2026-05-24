@@ -1,5 +1,6 @@
-import { Attachments } from './attachments/Attachments';
+import { messageIdentityAttributes } from '../common/messageIdentity';
 import type { QuotedMessage as QuotedMessageType } from '../db/types';
+import { Attachments } from './attachments/Attachments';
 
 const formatSenderName = (sender: QuotedMessageType['Sender']) => {
   if (!sender) return null;
@@ -16,12 +17,26 @@ export const QuotedMessageView = ({ quoted }: Props) => {
   const hasText = !!quoted.text?.trim();
   const hasAttachments = quoted.Attachment.length > 0;
 
-  if (!senderName && !hasText && !hasAttachments) {
-    return <div className="message-quote message-quote--empty">Сообщение</div>;
+  const identityProps = messageIdentityAttributes(quoted);
+
+  if (
+    quoted.QuotedMessages.length === 0 &&
+    !senderName &&
+    !hasText &&
+    !hasAttachments
+  ) {
+    return (
+      <div className="message-quote message-quote--empty" {...identityProps}>
+        Сообщение
+      </div>
+    );
   }
 
   return (
-    <div className="message-quote">
+    <div className="message-quote" {...identityProps}>
+      {quoted.QuotedMessages.map((nested) => (
+        <QuotedMessageView key={nested.export_id} quoted={nested} />
+      ))}
       {senderName && <div className="message-quote-author">{senderName}</div>}
       {hasText && <div className="message-quote-text">{quoted.text}</div>}
       {hasAttachments && (

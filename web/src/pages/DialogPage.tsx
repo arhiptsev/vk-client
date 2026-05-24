@@ -1,7 +1,12 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { MESSAGES_PAGE_SIZE } from '../common/constants';
+import {
+  MESSAGE_PAGE_SIZE_OPTIONS,
+  MESSAGES_PAGE_SIZE,
+  type MessagePageSize,
+} from '../common/constants';
+import { messageIdentityAttributes } from '../common/messageIdentity';
 import { Attachments } from '../components/attachments/Attachments';
 import { QuotedMessageView } from '../components/QuotedMessage';
 import { VirtualList, type VirtualListHandle } from '../components/VirtualList';
@@ -10,6 +15,12 @@ import type { Message } from '../db/types';
 
 const PREPEND_COOLDOWN_MS = 800;
 const SCROLL_LOAD_REARM_PX = 240;
+
+const PAGE_SIZE_LABELS: Record<MessagePageSize, string> = {
+  100: '100',
+  1000: '1K',
+  10000: '10K',
+};
 
 const formatSenderName = (sender: Message['Sender']) => {
   if (!sender) return null;
@@ -33,11 +44,15 @@ const MessageBubble = memo(({ message }: { message: Message }) => {
   const isReceived = !message.out;
   const senderName = isReceived ? formatSenderName(message.Sender) : null;
 
+  const identityProps = messageIdentityAttributes(message);
+
   return (
-    <div className={`message-row${incoming ? ' incoming' : ''}`}>
+    <div className={`message-row${incoming ? ' incoming' : ''}`} {...identityProps}>
       <div className={`bubble ${incoming ? 'incoming' : 'outgoing'}`}>
         {senderName && <div className="message-sender">{senderName}</div>}
-        {message.QuotedMessage && <QuotedMessageView quoted={message.QuotedMessage} />}
+        {message.QuotedMessages.map((quoted) => (
+          <QuotedMessageView key={quoted.export_id} quoted={quoted} />
+        ))}
         {!!message.text && <p className="message-text">{message.text}</p>}
         {message.Attachment.length > 0 && (
           <Attachments attachments={message.Attachment} />
@@ -61,12 +76,15 @@ export const DialogPage = () => {
   const prependLockRef = useRef(false);
   const mustLeaveTopRef = useRef(false);
   const skipRef = useRef(0);
+  const pageSizeRef = useRef(MESSAGES_PAGE_SIZE);
   const fetchedSkipsRef = useRef(new Set<number>());
   const ignoreScrollUntilRef = useRef(0);
   const scrollSnapshotRef = useRef<{ top: number; height: number } | null>(null);
   const guardsRef = useRef({ loading: false, loadingMore: false, hasMore: true });
 
   const [items, setItems] = useState<Message[]>([]);
+  console.log('items.length', items.length);
+  const [pageSize, setPageSize] = useState<MessagePageSize>(MESSAGES_PAGE_SIZE);
   const [skip, setSkip] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -74,6 +92,7 @@ export const DialogPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   skipRef.current = skip;
+  pageSizeRef.current = pageSize;
   guardsRef.current = { loading, loadingMore, hasMore };
 
   const loadPage = useCallback(
@@ -84,9 +103,10 @@ export const DialogPage = () => {
       setError(null);
 
       try {
-        const newItems = await getMessages(conversationId, nextSkip);
+        const limit = pageSizeRef.current;
+        const newItems = await getMessages(conversationId, nextSkip, limit);
         const chronological = [...newItems].reverse();
-        const pageFull = newItems.length === MESSAGES_PAGE_SIZE;
+        const pageFull = newItems.length === limit;
 
         if (append) {
           setItems((prev) => [...chronological, ...prev]);
@@ -122,7 +142,7 @@ export const DialogPage = () => {
     setSkip(0);
     setHasMore(true);
     void loadPage(0, false);
-  }, [conversationId, loadPage]);
+  }, [conversationId, pageSize, loadPage]);
 
   useEffect(() => {
     prependReadyRef.current = false;
@@ -169,7 +189,7 @@ export const DialogPage = () => {
     if (!prependReadyRef.current || isLoading || isLoadingMore || !more) return;
     if (!canLoadOlderRef.current) return;
 
-    const nextSkip = skipRef.current + MESSAGES_PAGE_SIZE;
+    const nextSkip = skipRef.current + pageSizeRef.current;
     if (fetchedSkipsRef.current.has(nextSkip)) return;
 
     const scroller = listRef.current?.getScrollerElement();
@@ -274,6 +294,19 @@ export const DialogPage = () => {
         <span className="count" title={hasMore ? 'Загружено не всё — прокрутите вверх' : undefined}>
           {countLabel}
         </span>
+        <div className="dialog-toolbar__page-size" role="group" aria-label="Размер порции при подгрузке">
+          {MESSAGE_PAGE_SIZE_OPTIONS.map((size) => (
+            <button
+              key={size}
+              type="button"
+              className={pageSize === size ? 'is-active' : undefined}
+              title={`Подгружать по ${size} сообщений`}
+              onClick={() => setPageSize(size)}
+            >
+              {PAGE_SIZE_LABELS[size]}
+            </button>
+          ))}
+        </div>
         <button type="button" title="К последним сообщениям" onClick={scrollToNewest}>
           ↓
         </button>

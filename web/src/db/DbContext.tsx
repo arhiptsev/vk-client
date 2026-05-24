@@ -21,7 +21,11 @@ type DbContextValue = {
   loadFile: (file: File) => Promise<void>;
   reset: () => void;
   getConversations: () => Promise<Conversation[]>;
-  getMessages: (conversationId: number, skip: number) => Promise<Message[]>;
+  getMessages: (
+    conversationId: number,
+    skip: number,
+    limit?: number
+  ) => Promise<Message[]>;
 };
 
 const DbContext = createContext<DbContextValue | null>(null);
@@ -78,11 +82,11 @@ export const DbProvider = ({ children }: { children: ReactNode }) => {
   }, [db]);
 
   const loadMessages = useCallback(
-    async (conversationId: number, skip: number) => {
+    async (conversationId: number, skip: number, limit?: number) => {
       if (!db) {
         throw new Error('База данных не загружена');
       }
-      return getMessages(db, conversationId, skip);
+      return getMessages(db, conversationId, skip, limit);
     },
     [db]
   );

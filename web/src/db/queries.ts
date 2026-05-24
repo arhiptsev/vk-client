@@ -2,6 +2,7 @@ import { MESSAGES_PAGE_SIZE } from '../common/constants';
 import type { SqlDatabase } from './database';
 import type {
   Attachment,
+  Audio,
   AudioMessage,
   Conversation,
   Message,
@@ -51,7 +52,7 @@ const MESSAGE_FEED_SQL = `
   LEFT JOIN UserInfo u ON u.id = m.from_id
   WHERE m.conversation_export_id = ?
   ORDER BY m.date DESC
-  LIMIT ${MESSAGES_PAGE_SIZE} OFFSET ?
+  LIMIT ? OFFSET ?
 `;
 
 function mapSender(
@@ -62,62 +63,145 @@ function mapSender(
   return { first_name, last_name };
 }
 
+const ORPHAN_QUOTE_SQL = `
+  SELECT
+    o.export_id,
+    o.text,
+    o.date,
+    o.out,
+    o.from_id,
+    o.reply_id,
+    o.parent_id,
+    o.conversation_export_id,
+    u.first_name AS sender_first_name,
+    u.last_name AS sender_last_name
+  FROM Message o
+  LEFT JOIN UserInfo u ON u.id = o.from_id
+  WHERE o.conversation_export_id IS NULL
+    AND (
+      o.reply_id IN (__PLACEHOLDERS__)
+      OR o.parent_id IN (__PLACEHOLDERS__)
+    )
+`;
+
+async function fetchOrphanQuoteRows(
+  db: SqlDatabase,
+  replyToIds: number[]
+): Promise<MessageRow[]> {
+  if (replyToIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = replyToIds.map(() => '?').join(',');
+  const sql = ORPHAN_QUOTE_SQL.replaceAll('__PLACEHOLDERS__', placeholders);
+
+  return db.getAllAsync<MessageRow>(sql, [...replyToIds, ...replyToIds]);
+}
+
+function rowToQuotedMessage(
+  row: MessageRow,
+  attachmentsByOrphan: Map<number, Attachment[]>
+): QuotedMessage {
+  return {
+    export_id: row.export_id,
+    text: row.text,
+    date: row.date,
+    out: row.out,
+    from_id: row.from_id,
+    parent_id: row.parent_id,
+    Sender: mapSender(row.sender_first_name, row.sender_last_name),
+    QuotedMessages: [],
+    Attachment: attachmentsByOrphan.get(row.export_id) ?? [],
+  };
+}
+
+function addQuoteForReplyTo(
+  quotesByReplyTo: Map<number, QuotedMessage[]>,
+  replyToId: number,
+  quote: QuotedMessage
+): void {
+  const list = quotesByReplyTo.get(replyToId);
+  if (list) {
+    list.push(quote);
+  } else {
+    quotesByReplyTo.set(replyToId, [quote]);
+  }
+}
+
+function sortQuotedMessagesByDate(quotes: QuotedMessage[]): void {
+  quotes.sort((a, b) => a.date - b.date);
+  for (const quote of quotes) {
+    sortQuotedMessagesByDate(quote.QuotedMessages);
+  }
+}
+
+function attachNestedQuotes(quotesByReplyTo: Map<number, QuotedMessage[]>): void {
+  for (const quotes of quotesByReplyTo.values()) {
+    for (const quote of quotes) {
+      quote.QuotedMessages = quotesByReplyTo.get(quote.export_id) ?? [];
+    }
+  }
+  for (const quotes of quotesByReplyTo.values()) {
+    sortQuotedMessagesByDate(quotes);
+  }
+}
+
 /**
  * В экспорте VK строка с reply_id/parent_id — это цитируемое сообщение;
- * reply_id/parent_id указывает на export_id ответа в ленте диалога.
+ * reply_id/parent_id указывает на export_id ответа в ленте или у родительской цитаты.
  */
 async function loadNestedQuotesForMessages(
   db: SqlDatabase,
   replyToIds: number[]
-): Promise<Map<number, QuotedMessage>> {
-  const result = new Map<number, QuotedMessage>();
+): Promise<Map<number, QuotedMessage[]>> {
+  const quotesByReplyTo = new Map<number, QuotedMessage[]>();
   if (replyToIds.length === 0) {
-    return result;
+    return quotesByReplyTo;
   }
 
-  const placeholders = replyToIds.map(() => '?').join(',');
-  const rows = await db.getAllAsync<MessageRow>(
-    `SELECT
-       o.export_id,
-       o.text,
-       o.date,
-       o.out,
-       o.from_id,
-       o.reply_id,
-       o.parent_id,
-       o.conversation_export_id,
-       u.first_name AS sender_first_name,
-       u.last_name AS sender_last_name
-     FROM Message o
-     LEFT JOIN UserInfo u ON u.id = o.from_id
-     WHERE o.conversation_export_id IS NULL
-       AND (
-         o.reply_id IN (${placeholders})
-         OR o.parent_id IN (${placeholders})
-       )`,
-    [...replyToIds, ...replyToIds]
-  );
+  const searchedIds = new Set<number>();
+  let idsToLoad = [...new Set(replyToIds)];
 
-  const orphanIds = rows.map((r) => r.export_id);
-  const attachmentsByOrphan = await loadAttachmentsForMessages(db, orphanIds);
-
-  for (const row of rows) {
-    const replyToId = row.reply_id ?? row.parent_id;
-    if (replyToId == null) {
-      continue;
+  while (idsToLoad.length > 0) {
+    const batch = idsToLoad.filter((id) => !searchedIds.has(id));
+    if (batch.length === 0) {
+      break;
     }
 
-    result.set(replyToId, {
-      export_id: row.export_id,
-      text: row.text,
-      date: row.date,
-      out: row.out,
-      Sender: mapSender(row.sender_first_name, row.sender_last_name),
-      Attachment: attachmentsByOrphan.get(row.export_id) ?? [],
-    });
+    for (const id of batch) {
+      searchedIds.add(id);
+    }
+
+    const rows = await fetchOrphanQuoteRows(db, batch);
+    if (rows.length === 0) {
+      break;
+    }
+
+    const attachmentsByOrphan = await loadAttachmentsForMessages(
+      db,
+      rows.map((r) => r.export_id)
+    );
+
+    const nextIds: number[] = [];
+    for (const row of rows) {
+      const replyToId = row.reply_id ?? row.parent_id;
+      if (replyToId == null) {
+        continue;
+      }
+
+      addQuoteForReplyTo(
+        quotesByReplyTo,
+        replyToId,
+        rowToQuotedMessage(row, attachmentsByOrphan)
+      );
+      nextIds.push(row.export_id);
+    }
+
+    idsToLoad = nextIds;
   }
 
-  return result;
+  attachNestedQuotes(quotesByReplyTo);
+  return quotesByReplyTo;
 }
 
 type AttachmentRow = {
@@ -174,6 +258,13 @@ async function loadAttachmentsForMessages(
         )
       : [];
 
+  const audios = await db.getAllAsync<Audio>(
+    `SELECT export_id, attachment_export_id, artist, title
+     FROM Audio
+     WHERE attachment_export_id IN (${attachmentIds.map(() => '?').join(',')})`,
+    attachmentIds
+  );
+
   const videos = await db.getAllAsync<Video & { attachment_export_id: number }>(
     `SELECT export_id, attachment_export_id, title
      FROM Video
@@ -192,8 +283,14 @@ async function loadAttachmentsForMessages(
         )
       : [];
 
-  const audioByAttachment = new Map(
+  const audioMessageByAttachment = new Map(
     audioMessages
+      .filter((a) => a.attachment_export_id != null)
+      .map((a) => [a.attachment_export_id!, a])
+  );
+
+  const audioByAttachment = new Map(
+    audios
       .filter((a) => a.attachment_export_id != null)
       .map((a) => [a.attachment_export_id!, a])
   );
@@ -221,7 +318,10 @@ async function loadAttachmentsForMessages(
   for (const row of attachments) {
     const item: Attachment = { ...row };
     if (row.type === 'audio_message') {
-      item.AudioMessage = audioByAttachment.get(row.export_id);
+      item.AudioMessage = audioMessageByAttachment.get(row.export_id);
+    }
+    if (row.type === 'audio') {
+      item.Audio = audioByAttachment.get(row.export_id);
     }
     if (row.type === 'photo') {
       item.Photo = photoByAttachment.get(row.export_id);
@@ -241,7 +341,7 @@ async function loadAttachmentsForMessages(
 function rowToMessage(
   row: MessageRow,
   attachmentsByMessage: Map<number, Attachment[]>,
-  nestedQuotesByReplyTo: Map<number, QuotedMessage>
+  nestedQuotesByReplyTo: Map<number, QuotedMessage[]>
 ): Message {
   return {
     export_id: row.export_id,
@@ -252,7 +352,7 @@ function rowToMessage(
     reply_id: row.reply_id,
     parent_id: row.parent_id,
     Sender: mapSender(row.sender_first_name, row.sender_last_name),
-    QuotedMessage: nestedQuotesByReplyTo.get(row.export_id) ?? null,
+    QuotedMessages: nestedQuotesByReplyTo.get(row.export_id) ?? [],
     Attachment: attachmentsByMessage.get(row.export_id) ?? [],
   };
 }
@@ -292,10 +392,12 @@ export async function getConversations(db: SqlDatabase): Promise<Conversation[]>
 export async function getMessages(
   db: SqlDatabase,
   conversationExportId: number,
-  skip: number
+  skip: number,
+  limit: number = MESSAGES_PAGE_SIZE
 ): Promise<Message[]> {
   const rows = await db.getAllAsync<MessageRow>(MESSAGE_FEED_SQL, [
     conversationExportId,
+    limit,
     skip,
   ]);
 
