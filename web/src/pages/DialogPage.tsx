@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import {
@@ -7,11 +7,13 @@ import {
   type MessagePageSize,
 } from '../common/constants';
 import { messageIdentityAttributes } from '../common/messageIdentity';
+import { resolveSelfFromId, shouldAlignQuotesBySender } from '../common/messageSide';
 import { Attachments } from '../components/attachments/Attachments';
+import { DialogMessageSearch } from '../components/DialogMessageSearch';
 import { QuotedMessageView } from '../components/QuotedMessage';
 import { VirtualList, type VirtualListHandle } from '../components/VirtualList';
 import { useDb } from '../db/DbContext';
-import type { Message } from '../db/types';
+import type { Message, MessageSearchHit } from '../db/types';
 
 const PREPEND_COOLDOWN_MS = 800;
 const SCROLL_LOAD_REARM_PX = 240;
@@ -39,19 +41,39 @@ const formatDate = (timestamp?: number | null) => {
   });
 };
 
-const MessageBubble = memo(({ message }: { message: Message }) => {
+const MessageBubble = memo(
+  ({
+    message,
+    highlightExportId,
+    selfFromId,
+  }: {
+    message: Message;
+    highlightExportId?: number | null;
+    selfFromId: number | null;
+  }) => {
   const incoming = !!message.out;
   const isReceived = !message.out;
   const senderName = isReceived ? formatSenderName(message.Sender) : null;
 
   const identityProps = messageIdentityAttributes(message);
+  const rowHighlighted = highlightExportId === message.export_id;
+  const alignQuotesBySender = shouldAlignQuotesBySender(message.QuotedMessages);
 
   return (
-    <div className={`message-row${incoming ? ' incoming' : ''}`} {...identityProps}>
+    <div
+      className={`message-row${incoming ? ' incoming' : ''}${rowHighlighted ? ' message-row--highlight' : ''}`}
+      {...identityProps}
+    >
       <div className={`bubble ${incoming ? 'incoming' : 'outgoing'}`}>
         {senderName && <div className="message-sender">{senderName}</div>}
         {message.QuotedMessages.map((quoted) => (
-          <QuotedMessageView key={quoted.export_id} quoted={quoted} />
+          <QuotedMessageView
+            key={quoted.export_id}
+            quoted={quoted}
+            selfFromId={selfFromId}
+            alignBySender={alignQuotesBySender}
+            highlightExportId={highlightExportId}
+          />
         ))}
         {!!message.text && <p className="message-text">{message.text}</p>}
         {message.Attachment.length > 0 && (
@@ -61,7 +83,8 @@ const MessageBubble = memo(({ message }: { message: Message }) => {
       </div>
     </div>
   );
-});
+  }
+);
 
 MessageBubble.displayName = 'MessageBubble';
 
@@ -83,7 +106,9 @@ export const DialogPage = () => {
   const guardsRef = useRef({ loading: false, loadingMore: false, hasMore: true });
 
   const [items, setItems] = useState<Message[]>([]);
-  console.log('items.length', items.length);
+  const [listEpoch, setListEpoch] = useState(0);
+  const [scrollToBottomOnLoad, setScrollToBottomOnLoad] = useState(true);
+  const [highlightExportId, setHighlightExportId] = useState<number | null>(null);
   const [pageSize, setPageSize] = useState<MessagePageSize>(MESSAGES_PAGE_SIZE);
   const [skip, setSkip] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -138,11 +163,49 @@ export const DialogPage = () => {
     fetchedSkipsRef.current.clear();
     scrollSnapshotRef.current = null;
     ignoreScrollUntilRef.current = 0;
+    setHighlightExportId(null);
+    setListEpoch((n) => n + 1);
+    setScrollToBottomOnLoad(true);
     setItems([]);
     setSkip(0);
     setHasMore(true);
     void loadPage(0, false);
   }, [conversationId, pageSize, loadPage]);
+
+  const scrollToMessage = useCallback(
+    (highlightExportId: number, anchorExportId: number, chronologicalIndex: number) => {
+      setHighlightExportId(highlightExportId);
+      window.setTimeout(() => setHighlightExportId(null), 2500);
+
+      const scroll = () => {
+        listRef.current?.scrollToIndex(chronologicalIndex, {
+          behavior: 'smooth',
+          block: 'center',
+        });
+
+        if (highlightExportId !== anchorExportId) {
+          const scroller = listRef.current?.getScrollerElement();
+          const quote = scroller?.querySelector(`[export_id="${highlightExportId}"]`);
+          quote?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+      };
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(scroll);
+      });
+    },
+    []
+  );
+
+  const goToSearchHit = useCallback(
+    (hit: MessageSearchHit) => {
+      const index = items.findIndex((m) => m.export_id === hit.anchor_export_id);
+      if (index >= 0) {
+        scrollToMessage(hit.export_id, hit.anchor_export_id, index);
+      }
+    },
+    [items, scrollToMessage]
+  );
 
   useEffect(() => {
     prependReadyRef.current = false;
@@ -256,37 +319,45 @@ export const DialogPage = () => {
     );
   }
 
+  const selfFromId = useMemo(() => resolveSelfFromId(items), [items]);
   const countLabel = hasMore ? `${items.length}+` : String(items.length);
 
   return (
     <div className="dialog-layout">
-      {items.length === 0 ? (
-        <div className="messages messages--empty">Нет сообщений</div>
-      ) : (
-        <VirtualList
-          key={conversationId}
-          ref={listRef}
-          className="messages"
-          items={items}
-          itemKey={(item) => item.export_id}
-          estimateItemHeight={72}
-          initialScrollBottom
-          reachTopThreshold={120}
-          onReachTop={tryLoadOlder}
-          onScroll={handleListScroll}
-          header={
-            loadingMore ? (
-              <div className="messages-loader messages-loader--inline">Загрузка…</div>
-            ) : null
-          }
-        >
-          {(message) => (
-            <div className="virtual-list-item-inner">
-              <MessageBubble message={message} />
-            </div>
-          )}
-        </VirtualList>
-      )}
+      <div className="dialog-main">
+        <DialogMessageSearch items={items} hasMore={hasMore} onSelect={goToSearchHit} />
+        {items.length === 0 ? (
+          <div className="messages messages--empty">Нет сообщений</div>
+        ) : (
+          <VirtualList
+            key={`${conversationId}-${listEpoch}`}
+            ref={listRef}
+            className="messages"
+            items={items}
+            itemKey={(item) => item.export_id}
+            estimateItemHeight={72}
+            initialScrollBottom={scrollToBottomOnLoad}
+            reachTopThreshold={120}
+            onReachTop={tryLoadOlder}
+            onScroll={handleListScroll}
+            header={
+              loadingMore ? (
+                <div className="messages-loader messages-loader--inline">Загрузка…</div>
+              ) : null
+            }
+          >
+            {(message) => (
+              <div className="virtual-list-item-inner">
+                <MessageBubble
+                  message={message}
+                  selfFromId={selfFromId}
+                  highlightExportId={highlightExportId}
+                />
+              </div>
+            )}
+          </VirtualList>
+        )}
+      </div>
       <aside className="dialog-toolbar">
         <button type="button" title="К началу истории" onClick={scrollToOldest}>
           ↑

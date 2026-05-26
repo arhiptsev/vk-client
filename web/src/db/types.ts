@@ -105,3 +105,12 @@ export type Message = {
   QuotedMessages: QuotedMessage[];
   Attachment: Attachment[];
 };
+
+export type MessageSearchHit = {
+  export_id: number;
+  /** Сообщение в ленте, к которому нужно прокрутить (для вложенных — родитель в ленте) */
+  anchor_export_id: number;
+  text: string;
+  date: number;
+  Sender: MessageSender | null;
+};

@@ -9,9 +9,15 @@ import {
   type ReactNode,
 } from 'react';
 
+export type ScrollToIndexOptions = {
+  behavior?: ScrollBehavior;
+  block?: 'start' | 'center';
+};
+
 export type VirtualListHandle = {
   scrollToTop: (behavior?: ScrollBehavior) => void;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
+  scrollToIndex: (index: number, options?: ScrollToIndexOptions) => void;
   getScrollerElement: () => HTMLDivElement | null;
 };
 
@@ -174,6 +180,10 @@ function VirtualListInner<T>(
     // layoutEpoch — пересчёт после измерений и prepend
     [heights, itemGap, layoutEpoch, items.length]
   );
+  const offsetsRef = useRef(offsets);
+  const heightsForScrollRef = useRef(heights);
+  offsetsRef.current = offsets;
+  heightsForScrollRef.current = heights;
 
   const totalHeight = offsets.length > 0 ? offsets[offsets.length - 1] : 0;
 
@@ -265,9 +275,25 @@ function VirtualListInner<T>(
         if (!el) return;
         el.scrollTo({ top: el.scrollHeight - el.clientHeight, behavior });
       },
+      scrollToIndex: (index, options) => {
+        const el = scrollerRef.current;
+        if (!el || index < 0 || index >= items.length) return;
+
+        const behavior = options?.behavior ?? 'smooth';
+        const itemHeight = heightsForScrollRef.current[index] ?? estimateItemHeight;
+        let top = offsetsRef.current[index] ?? 0;
+
+        if (options?.block === 'center') {
+          top = Math.max(0, top - (el.clientHeight - itemHeight) / 2);
+        }
+
+        const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
+        el.scrollTo({ top: Math.min(top, maxTop), behavior });
+        updateViewport();
+      },
       getScrollerElement: () => scrollerRef.current,
     }),
-    []
+    [estimateItemHeight, items.length, updateViewport]
   );
 
   const { startIndex, endIndex } = useMemo(() => {

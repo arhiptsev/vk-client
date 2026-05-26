@@ -10,3 +10,6 @@ export const MESSAGES_PAGE_SIZE = 100;
 /** Варианты размера порции при подгрузке по скроллу */
 export const MESSAGE_PAGE_SIZE_OPTIONS = [100, 1000, 10000] as const;
 export type MessagePageSize = (typeof MESSAGE_PAGE_SIZE_OPTIONS)[number];
+
+export const MESSAGE_SEARCH_MIN_LENGTH = 2;
+export const MESSAGE_SEARCH_LIMIT = 80;
