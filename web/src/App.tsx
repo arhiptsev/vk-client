@@ -1,4 +1,17 @@
-import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  HashRouter,
+  Link,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
+
+const AppRouter =
+  typeof window !== 'undefined' && window.location.protocol === 'file:'
+    ? HashRouter
+    : BrowserRouter;
 
 import { FilePicker } from './components/FilePicker';
 import { MediaSetup } from './components/MediaSetup';
@@ -72,11 +85,11 @@ export default function App() {
   return (
     <MediaProvider>
       <DbProvider>
-        <BrowserRouter>
+        <AppRouter>
           <div className="app-viewport">
             <AppRoutes />
           </div>
-        </BrowserRouter>
+        </AppRouter>
       </DbProvider>
     </MediaProvider>
   );

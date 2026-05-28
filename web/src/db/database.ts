@@ -1,6 +1,6 @@
 import initSqlJs from 'sql.js/dist/sql-wasm-browser.js';
 import type { Database, SqlValue } from 'sql.js';
-import wasmUrl from 'sql.js/dist/sql-wasm-browser.wasm?url';
+import wasmBase64 from 'sql.js/dist/sql-wasm-browser.wasm?inline-wasm';
 
 /** Минимальный интерфейс, совместимый с запросами из front */
 export type SqlDatabase = {
@@ -8,11 +8,23 @@ export type SqlDatabase = {
   close: () => void;
 };
 
+let wasmBinary: Uint8Array | null = null;
+
+function getWasmBinary(): Uint8Array {
+  if (!wasmBinary) {
+    const raw = atob(wasmBase64);
+    wasmBinary = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) wasmBinary[i] = raw.charCodeAt(i);
+  }
+  return wasmBinary;
+}
+
 let sqlModulePromise: ReturnType<typeof initSqlJs> | null = null;
 
 async function getSqlModule() {
   if (!sqlModulePromise) {
-    sqlModulePromise = initSqlJs({ locateFile: () => wasmUrl });
+    // fetch(file://…) блокируется CORS — передаём wasm в память
+    sqlModulePromise = initSqlJs({ wasmBinary: getWasmBinary() });
   }
   return sqlModulePromise;
 }
